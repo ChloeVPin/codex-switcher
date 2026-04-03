@@ -2,8 +2,18 @@
   "name": "codex-switcher",
   "private": true,
   "version": "0.1.7",
-  "description": "A multi-account manager for Codex CLI",
+  "description": "Local dashboard for managing Codex CLI accounts",
   "type": "module",
+  "keywords": [
+    "codex",
+    "openai",
+    "account-manager",
+    "auth-json",
+    "browser-dashboard",
+    "rust",
+    "react",
+    "typescript"
+  ],
   "scripts": {
     "dev": "corepack pnpm build && node scripts/run-lan.mjs",
     "build": "tsc && vite build",

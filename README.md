@@ -1,95 +1,93 @@
 <p align="center">
-  <img src="src-tauri/icons/logo.svg" alt="Codex Switcher" width="128" height="128">
+  <img src="public/app-logo.png" alt="Codex Switcher logo" width="128" height="128">
 </p>
 
-<h1 align="center">Codex Switcher</h1>
+# Codex Switcher
 
-<p align="center">
-  A Desktop Application for Managing Multiple OpenAI <a href="https://github.com/openai/codex">Codex CLI</a> Accounts<br>
-  Easily switch between accounts, monitor usage limits, and stay in control of your quota
-</p>
+Local dashboard for managing Codex CLI accounts.
 
-## Features
+Switch accounts by writing `auth.json`, inspect usage, warm accounts up, and keep backups in one place. Run it as a local browser app or package it as portable Windows EXEs.
 
-- **Multi-Account Management** – Add and manage multiple Codex accounts in one place
-- **Quick Switching** – Switch between accounts with a single click
-- **Usage Monitoring** – View real-time usage for both 5-hour and weekly limits
-- **Dual Login Mode** – OAuth authentication or import existing `auth.json` files
+## What it does
 
-## Installation
+- Manages multiple Codex/OpenAI accounts locally
+- Switches the active account by writing `auth.json`
+- Shows usage data for each account
+- Sends warm-up requests when needed
+- Imports and exports accounts from `auth.json` or encrypted backups
+- Runs as a local browser dashboard
+- Builds into portable Windows executables
+
+## Repository Layout
+
+- `src/` React UI
+- `src-tauri/` Rust backend, local server, and account logic
+- `scripts/` build and run helpers
+- `public/` logo and static assets
+
+## Getting Started
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) (v18+)
-- [pnpm](https://pnpm.io/)
-- [Rust](https://rustup.rs/)
+- Node.js 18+
+- pnpm
+- Rust toolchain
 
-### Build from Source
+### Install
 
 ```bash
-# Clone the repository
-git clone https://github.com/Lampese/codex-switcher.git
-cd codex-switcher
-
-# Install dependencies
 pnpm install
-
-# Run in development mode
-pnpm tauri dev
-
-# Build portable Windows executables only
-pnpm build:windows
 ```
 
-Portable Windows builds are written to `artifacts/windows/` and launch the local browser dashboard:
-
-- `codex-switcher-x64.exe`
-- `codex-switcher-x86.exe`
-- `codex-switcher-arm64.exe`
-
-The build script removes old files from that output directory before copying new binaries.
-When you launch one of the portable EXEs, it starts the local HTTP server and opens your browser to it.
-
-If you want the Tauri desktop bundle instead, use `pnpm tauri build`. That produces installers and is not the portable path.
-
-### Run the Dashboard in a Browser
-
-You can also serve the built dashboard over HTTP instead of opening the Tauri shell.
+### Run Locally
 
 ```bash
-# Build the frontend and start the web server on 0.0.0.0:3210
+pnpm dev
+```
+
+Builds the frontend and starts the local browser dashboard.
+
+If you want the same dashboard without the launcher wrapper:
+
+```bash
 pnpm lan
 ```
 
-Optional environment variables:
-
-- `CODEX_SWITCHER_WEB_HOST` to override the bind host
-- `CODEX_SWITCHER_WEB_PORT` to override the port
-
-The browser dashboard serves the same UI and backend actions through `/api/invoke/*`, which makes it usable over LAN, Tailscale, or a remote host tunnel when you expose the chosen port safely.
-
-## Disclaimer
-
-This tool is designed **exclusively for individuals who personally own multiple OpenAI/ChatGPT accounts**. It is intended to help users manage their own accounts more conveniently.
-
-**This tool is NOT intended for:**
-
-- Sharing accounts between multiple users
-- Circumventing OpenAI's terms of service
-- Any form of account pooling or credential sharing
-
-By using this software, you agree that you are the rightful owner of all accounts you add to the application. The authors are not responsible for any misuse or violations of OpenAI's terms of service.
-
-## Versioning
-
-Use the version bump helper to keep app versions in sync across Tauri, Cargo, and the frontend.
+### Build
 
 ```bash
-# Exact version
-pnpm version:bump 0.1.7
-
-# Semver bumps
-pnpm version:patch
-pnpm version:minor
-pnpm version:major
+pnpm build
 ```
+
+### Portable Windows EXEs
+
+```bash
+pnpm build:windows
+```
+
+Outputs:
+
+- `artifacts/windows/codex-switcher-x64.exe`
+- `artifacts/windows/codex-switcher-x86.exe`
+- `artifacts/windows/codex-switcher-arm64.exe`
+
+Each EXE starts the local server and opens the dashboard in your browser.
+
+## Configuration
+
+- `CODEX_SWITCHER_WEB_HOST` sets the bind host
+- `CODEX_SWITCHER_WEB_PORT` sets the port
+- `CODEX_SWITCHER_WEB_OPEN_BROWSER=0` disables auto-open
+- `CODEX_HOME` changes the Codex auth directory target
+
+## Security Notes
+
+- This tool only manages accounts you own or are authorized to manage.
+- It stores account data locally on your machine.
+- It can export encrypted backups for portability.
+- It does not use a cloud backend.
+
+## Why It Exists
+
+Codex account switching is easier when the account data, usage info, and import/export flow live in one local dashboard instead of being scattered across files and terminals.
+
