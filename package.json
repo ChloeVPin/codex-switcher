@@ -2,6 +2,7 @@
   "name": "codex-switcher",
   "private": true,
   "version": "0.1.7",
+  "license": "MIT",
   "description": "Local dashboard for managing Codex CLI accounts",
   "type": "module",
   "keywords": [
