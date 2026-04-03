@@ -2,11 +2,14 @@
   <img src="public/app-logo.png" alt="Codex Switcher logo" width="128" height="128">
 </p>
 
-# Codex Switcher
+<h1 align="center">Codex Switcher</h1>
 
-Local dashboard for managing Codex CLI accounts.
+<p align="center">Local dashboard for managing Codex CLI accounts.</p>
 
-Switch accounts by writing `auth.json`, inspect usage, warm accounts up, and keep backups in one place. Run it as a local browser app or package it as portable Windows EXEs.
+<p align="center">
+  Switch accounts by writing `auth.json`, inspect usage, warm accounts up, and keep backups in one place.
+  Run it as a local browser app or package it as portable Windows EXEs.
+</p>
 
 ## What it does
 
@@ -90,4 +93,3 @@ Each EXE starts the local server and opens the dashboard in your browser.
 ## Why It Exists
 
 Codex account switching is easier when the account data, usage info, and import/export flow live in one local dashboard instead of being scattered across files and terminals.
-
