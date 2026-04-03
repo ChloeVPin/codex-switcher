@@ -7,7 +7,7 @@
 <p align="center">Local dashboard for managing Codex CLI accounts.</p>
 
 <p align="center">
-  Switch accounts by writing `auth.json`, inspect usage, warm accounts up, and keep backups in one place.
+  Switch accounts by writing <code>auth.json</code>, inspect usage, warm accounts up, and keep backups in one place.
   Run it as a local browser app or package it as portable Windows EXEs.
 </p>
 
