@@ -1,0 +1,35 @@
+{
+  "name": "codex-switcher",
+  "private": true,
+  "version": "0.1.7",
+  "description": "A multi-account manager for Codex CLI",
+  "type": "module",
+  "scripts": {
+    "dev": "corepack pnpm build && node scripts/run-lan.mjs",
+    "build": "tsc && vite build",
+    "build:windows": "node scripts/build-windows.mjs",
+    "preview": "vite preview",
+    "lan": "corepack pnpm build && node scripts/run-lan.mjs",
+    "version:bump": "node scripts/bump-version.mjs",
+    "version:patch": "node scripts/bump-version.mjs patch",
+    "version:minor": "node scripts/bump-version.mjs minor",
+    "version:major": "node scripts/bump-version.mjs major"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/icons-material": "^7.3.9",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.18",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^4.6.0",
+    "rcedit": "^5.0.2",
+    "tailwindcss": "^4.1.18",
+    "typescript": "~5.8.3",
+    "vite": "^7.0.4"
+  }
+}
