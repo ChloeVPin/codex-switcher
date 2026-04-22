@@ -74,14 +74,13 @@ struct FileImportArgs {
 }
 
 pub fn run_lan_server(host: &str, port: u16) -> anyhow::Result<()> {
-    let address = format!("{host}:{port}");
-    let server = Server::http(&address)
-        .map_err(|err| anyhow::anyhow!("Failed to bind HTTP server on {address}: {err}"))?;
+    let (server, bound_port) = bind_server_with_fallback(host, port)?;
     let runtime = Runtime::new().context("Failed to start async runtime")?;
 
+    let address = format!("{host}:{bound_port}");
     println!("Codex Switcher web server listening on http://{address}");
     println!("Serving embedded frontend assets from the packaged EXE");
-    open_browser_for_server(host, port);
+    open_browser_for_server(host, bound_port);
 
     for request in server.incoming_requests() {
         if let Err(error) = handle_request(request, &runtime) {
@@ -90,6 +89,35 @@ pub fn run_lan_server(host: &str, port: u16) -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+fn bind_server_with_fallback(host: &str, starting_port: u16) -> anyhow::Result<(Server, u16)> {
+    let mut last_error: Option<anyhow::Error> = None;
+
+    for port in starting_port..=starting_port.saturating_add(32) {
+        let address = format!("{host}:{port}");
+        match Server::http(&address) {
+            Ok(server) => {
+                if port != starting_port {
+                    eprintln!(
+                        "[web] port {starting_port} was busy, using fallback port {port} instead"
+                    );
+                }
+                return Ok((server, port));
+            }
+            Err(error) => {
+                last_error = Some(anyhow::anyhow!(
+                    "Failed to bind HTTP server on {address}: {error}"
+                ));
+            }
+        }
+    }
+
+    Err(last_error.unwrap_or_else(|| {
+        anyhow::anyhow!(
+            "Failed to bind HTTP server on {host}:{starting_port} and fallback ports"
+        )
+    }))
 }
 
 fn open_browser_for_server(host: &str, port: u16) {

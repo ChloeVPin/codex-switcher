@@ -1,3 +1,5 @@
+#![cfg_attr(all(not(debug_assertions), windows), windows_subsystem = "console")]
+
 fn main() {
     if let Err(error) = run() {
         eprintln!("{error:#}");
