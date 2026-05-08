@@ -87,3 +87,56 @@ jobs:
           includeUpdaterJson: true
           updaterJsonKeepUniversal: true
           args: --target ${{ matrix.target }}
+
+  windows-portable:
+    needs: publish
+    permissions:
+      contents: write
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc,i686-pc-windows-msvc,aarch64-pc-windows-msvc
+
+      - name: Install frontend dependencies
+        run: pnpm install
+
+      - name: Determine tag
+        id: tag
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build portable Windows executables
+        run: pnpm build:windows
+
+      - name: Upload portable executables to the GitHub release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          files: |
+            artifacts/windows/codex-switcher-x32.exe
+            artifacts/windows/codex-switcher-x64.exe
+            artifacts/windows/codex-switcher-arm64.exe
+          fail_on_unmatched_files: true

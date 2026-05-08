@@ -6,6 +6,7 @@ import {
   LoginRounded,
   OpenInNewRounded,
 } from "@mui/icons-material";
+import CircularProgress from "@mui/material/CircularProgress";
 import {
   describeFileSource,
   openExternalUrl,
@@ -53,7 +54,9 @@ export function AddAccountModal({
 
   const handleClose = () => {
     if (oauthPending) {
-      onCancelOAuth();
+      void onCancelOAuth().catch((err) => {
+        console.error("Failed to cancel login:", err);
+      });
     }
     resetForm();
     onClose();
@@ -122,14 +125,14 @@ export function AddAccountModal({
           <button
             type="button"
             onClick={handleClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="modal-close-button text-gray-400 hover:text-gray-200 transition-colors"
             aria-label="Close modal"
           >
             <Close fontSize="small" />
           </button>
         </div>
 
-        <div className="flex border-b border-gray-100">
+        <div className="add-account-tablist" role="tablist" aria-label="Account import method">
           {(["oauth", "import"] as Tab[]).map((tab) => (
             <button
               key={tab}
@@ -145,11 +148,11 @@ export function AddAccountModal({
                 setActiveTab(tab);
                 setError(null);
               }}
-              className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                activeTab === tab
-                  ? "text-gray-900 border-b-2 border-gray-900 -mb-px"
-                  : "text-gray-400 hover:text-gray-600"
-              }`}
+              role="tab"
+              aria-pressed={activeTab === tab}
+              aria-selected={activeTab === tab}
+              data-active={activeTab === tab ? "true" : "false"}
+              className={`add-account-tab ${activeTab === tab ? "is-active" : ""}`}
             >
               {tab === "oauth" ? "ChatGPT Login" : "Import File"}
             </button>
@@ -171,19 +174,18 @@ export function AddAccountModal({
           {activeTab === "oauth" && (
             <div className="text-sm text-gray-500">
               {oauthPending ? (
-                <div className="text-center py-4">
-                  <div className="animate-spin h-8 w-8 border-2 border-gray-900 border-t-transparent rounded-full mx-auto mb-3"></div>
-                  <p className="text-gray-700 font-medium mb-2">Waiting for browser login</p>
-                  <p className="text-xs text-gray-500 mb-4">
-                    Please open the following link in your browser to proceed:
+                <div className="add-account-auth add-account-auth--pending">
+                  <div className="add-account-auth__spinner">
+                    <CircularProgress size={28} thickness={4} color="inherit" />
+                  </div>
+                  <p className="add-account-auth__title">Login link ready</p>
+                  <p className="add-account-auth__subtitle">
+                    Finish the sign-in in your browser, then come back here and wait for the app to confirm it.
                   </p>
-                  <div className="flex items-center gap-2 mb-2 bg-gray-50 p-2 rounded-lg border border-gray-200">
-                    <input
-                      type="text"
-                      readOnly
-                      value={authUrl}
-                      className="flex-1 bg-transparent border-none text-xs text-gray-600 focus:outline-none focus:ring-0 truncate"
-                    />
+                  <div className="add-account-auth__row">
+                    <div className="add-account-auth__linkbox" title={authUrl}>
+                      <input type="text" readOnly value={authUrl} className="add-account-auth__link" />
+                    </div>
                     <button
                       type="button"
                       onClick={() => {
@@ -197,11 +199,7 @@ export function AddAccountModal({
                             setError("Clipboard unavailable. Copy the link manually.");
                           });
                       }}
-                      className={`px-3 py-1.5 border rounded text-xs font-medium transition-colors shrink-0 inline-flex items-center gap-2 ${
-                        copied
-                          ? "bg-green-50 border-green-200 text-green-700"
-                          : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
-                      }`}
+                      className={`add-account-auth__button add-account-auth__button--copy ${copied ? "is-copied" : ""}`}
                     >
                       <ContentCopyOutlined fontSize="inherit" />
                       {copied ? "Copied" : "Copy"}
@@ -211,7 +209,7 @@ export function AddAccountModal({
                       onClick={() => {
                         void openExternalUrl(authUrl);
                       }}
-                      className="px-3 py-1.5 bg-gray-900 border border-gray-900 rounded text-xs font-medium text-white hover:bg-gray-800 transition-colors shrink-0 inline-flex items-center gap-2"
+                      className="add-account-auth__button add-account-auth__button--open"
                     >
                       <OpenInNewRounded fontSize="inherit" />
                       Open
@@ -240,7 +238,7 @@ export function AddAccountModal({
                   type="button"
                   onClick={handleSelectFile}
                   title="Browse: open the file picker at the expected auth.json location."
-                  className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 transition-colors whitespace-nowrap inline-flex items-center gap-2"
+                  className="btn-mono px-4 py-2.5 bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 transition-colors whitespace-nowrap inline-flex items-center gap-2"
                 >
                   <FolderOpenOutlined fontSize="inherit" />
                   Browse
@@ -263,7 +261,7 @@ export function AddAccountModal({
           <button
             type="button"
             onClick={handleClose}
-            className="flex-1 px-4 py-2.5 text-sm font-medium rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
+            className="btn-mono flex-1 px-4 py-2.5 text-sm font-medium rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
           >
             Cancel
           </button>
@@ -271,7 +269,7 @@ export function AddAccountModal({
             type="button"
             onClick={activeTab === "oauth" ? handleOAuthLogin : handleImportFile}
             disabled={isPrimaryDisabled}
-            className="flex-1 min-w-0 whitespace-nowrap px-4 py-2.5 text-sm font-medium rounded-lg bg-gray-900 hover:bg-gray-800 text-white transition-colors disabled:opacity-50 inline-flex items-center justify-center gap-2"
+            className="btn-mono flex-1 min-w-0 whitespace-nowrap px-4 py-2.5 text-sm font-medium rounded-lg bg-gray-900 hover:bg-gray-800 text-white transition-colors disabled:opacity-50 inline-flex items-center justify-center gap-2"
           >
             <LoginRounded fontSize="small" />
             {loading

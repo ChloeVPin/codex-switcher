@@ -103,6 +103,7 @@ pub async fn add_account_from_file(path: String, name: String) -> Result<Account
     Ok(AccountInfo::from_stored(&stored, active_id))
 }
 
+#[tauri::command]
 pub async fn add_account_from_auth_json_text(
     name: String,
     contents: String,
@@ -207,9 +208,12 @@ pub async fn export_accounts_full_encrypted_file(path: String) -> Result<(), Str
     Ok(())
 }
 
-pub async fn export_accounts_full_encrypted_bytes() -> Result<Vec<u8>, String> {
+#[tauri::command]
+pub async fn export_accounts_full_encrypted_bytes() -> Result<String, String> {
     let store = load_accounts().map_err(|e| e.to_string())?;
-    encode_full_encrypted_store(&store, FULL_PRESET_PASSPHRASE).map_err(|e| e.to_string())
+    let encrypted =
+        encode_full_encrypted_store(&store, FULL_PRESET_PASSPHRASE).map_err(|e| e.to_string())?;
+    Ok(base64::engine::general_purpose::STANDARD.encode(encrypted))
 }
 
 #[tauri::command]
@@ -227,9 +231,13 @@ pub async fn import_accounts_full_encrypted_file(
     Ok(summary)
 }
 
+#[tauri::command]
 pub async fn import_accounts_full_encrypted_bytes(
-    bytes: Vec<u8>,
+    contents_base64: String,
 ) -> Result<ImportAccountsSummary, String> {
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(contents_base64)
+        .map_err(|e| e.to_string())?;
     let imported =
         decode_full_encrypted_store(&bytes, FULL_PRESET_PASSPHRASE).map_err(|e| e.to_string())?;
     validate_imported_store(&imported).map_err(|e| e.to_string())?;

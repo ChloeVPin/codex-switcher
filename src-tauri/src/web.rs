@@ -1,8 +1,8 @@
 use std::path::{Component, Path, PathBuf};
 use std::time::Duration;
+use std::thread;
 
 use anyhow::Context;
-use base64::{engine::general_purpose::STANDARD, Engine as _};
 use include_dir::{include_dir, Dir};
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
@@ -74,21 +74,38 @@ struct FileImportArgs {
 }
 
 pub fn run_lan_server(host: &str, port: u16) -> anyhow::Result<()> {
-    let (server, bound_port) = bind_server_with_fallback(host, port)?;
-    let runtime = Runtime::new().context("Failed to start async runtime")?;
+    let bound_port = spawn_lan_server(host, port)?;
 
     let address = format!("{host}:{bound_port}");
     println!("Codex Switcher web server listening on http://{address}");
     println!("Serving embedded frontend assets from the packaged EXE");
     open_browser_for_server(host, bound_port);
 
-    for request in server.incoming_requests() {
-        if let Err(error) = handle_request(request, &runtime) {
-            eprintln!("[web] request failed: {error:#}");
-        }
+    loop {
+        thread::park();
     }
+}
 
-    Ok(())
+pub fn spawn_lan_server(host: &str, port: u16) -> anyhow::Result<u16> {
+    let (server, bound_port) = bind_server_with_fallback(host, port)?;
+    let runtime = Runtime::new().context("Failed to start async runtime")?;
+
+    thread::spawn(move || {
+        for request in server.incoming_requests() {
+            if let Err(error) = handle_request(request, &runtime) {
+                eprintln!("[web] request failed: {error:#}");
+            }
+        }
+    });
+
+    Ok(bound_port)
+}
+
+pub fn browser_host_for_server(host: &str) -> &str {
+    match host {
+        "0.0.0.0" | "::" | "[::]" | "127.0.0.1" | "localhost" => "localhost",
+        other => other,
+    }
 }
 
 fn bind_server_with_fallback(host: &str, starting_port: u16) -> anyhow::Result<(Server, u16)> {
@@ -130,11 +147,7 @@ fn open_browser_for_server(host: &str, port: u16) {
         return;
     }
 
-    let browser_host = match host {
-        "0.0.0.0" | "::" | "[::]" | "127.0.0.1" | "localhost" => "localhost",
-        other => other,
-    };
-    let url = format!("http://{browser_host}:{port}");
+    let url = format!("http://{}:{port}", browser_host_for_server(host));
 
     std::thread::spawn(move || {
         std::thread::sleep(Duration::from_millis(250));
@@ -224,15 +237,11 @@ async fn invoke_web_command(command: &str, payload: Value) -> Result<Value, Stri
             to_json(import_accounts_slim_text(args.payload).await?)
         }
         "export_accounts_full_encrypted_bytes" => {
-            let encoded = STANDARD.encode(export_accounts_full_encrypted_bytes().await?);
-            to_json(encoded)
+            to_json(export_accounts_full_encrypted_bytes().await?)
         }
         "import_accounts_full_encrypted_bytes" => {
             let args: UploadEncryptedArgs = parse_args(payload)?;
-            let bytes = STANDARD
-                .decode(args.contents_base64)
-                .map_err(|error| format!("Failed to decode uploaded backup: {error}"))?;
-            to_json(import_accounts_full_encrypted_bytes(bytes).await?)
+            to_json(import_accounts_full_encrypted_bytes(args.contents_base64).await?)
         }
         "get_masked_account_ids" => to_json(get_masked_account_ids().await?),
         "set_masked_account_ids" => {

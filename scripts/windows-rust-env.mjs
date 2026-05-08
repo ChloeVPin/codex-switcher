@@ -1,78 +1,15 @@
 import fs from "node:fs";
 import path from "node:path";
-import { execFileSync } from "node:child_process";
 
-const rootDir = process.cwd();
-const cargoManifestPath = path.join(rootDir, "src-tauri", "Cargo.toml");
-const artifactsDir = path.join(rootDir, "artifacts", "windows");
-const targetDir = path.join(rootDir, "src-tauri", "target");
-const portableBinaryName = "codex-web";
-const exeIconPath = path.join(rootDir, "src-tauri", "icons", "icon.ico");
-const windowsDelimiter = path.delimiter;
 const programFiles = process.env.ProgramFiles ?? "C:\\Program Files";
 const programFilesX86 =
   process.env["ProgramFiles(x86)"] ?? "C:\\Program Files (x86)";
+const windowsDelimiter = path.delimiter;
 const windowsKitsRoot = path.join(programFilesX86, "Windows Kits", "10");
 const llvmBinDir = path.join(programFiles, "LLVM", "bin");
 
-const builds = [
-  {
-    target: "x86_64-pc-windows-msvc",
-    suffix: "x64",
-    arch: "x64",
-    toolchain: "stable-x86_64-pc-windows-msvc",
-  },
-  {
-    target: "i686-pc-windows-msvc",
-    suffix: "x32",
-    arch: "x86",
-    toolchain: "stable-i686-pc-windows-msvc",
-  },
-  {
-    target: "aarch64-pc-windows-msvc",
-    suffix: "arm64",
-    arch: "arm64",
-    toolchain: "stable-x86_64-pc-windows-msvc",
-  },
-];
-
-function run(command, args, extraEnv = {}) {
-  execFileSync(command, args, {
-    cwd: rootDir,
-    env: { ...process.env, ...extraEnv },
-    stdio: "inherit",
-  });
-}
-
-function runShell(commandLine) {
-  const shell = process.env.COMSPEC ?? "cmd.exe";
-  execFileSync(shell, ["/d", "/s", "/c", commandLine], {
-    cwd: rootDir,
-    env: process.env,
-    stdio: "inherit",
-  });
-}
-
-function ensureToolchainInstalled(toolchain) {
-  const installedToolchains = execFileSync("rustup", ["toolchain", "list"], {
-    cwd: rootDir,
-    env: process.env,
-    encoding: "utf8",
-  });
-
-  if (installedToolchains.includes(toolchain)) {
-    return;
-  }
-
-  run("rustup", ["toolchain", "install", toolchain, "--profile", "minimal"]);
-}
-
 function directoryExists(dirPath) {
   return Boolean(dirPath) && fs.existsSync(dirPath) && fs.statSync(dirPath).isDirectory();
-}
-
-function fileExists(filePath) {
-  return Boolean(filePath) && fs.existsSync(filePath) && fs.statSync(filePath).isFile();
 }
 
 function compareVersionStrings(left, right) {
@@ -190,7 +127,7 @@ function findMsvcEnv(arch) {
   };
 }
 
-function findArm64Env() {
+export function buildTauriArm64Env() {
   const baseEnv = findMsvcEnv("arm64");
   if (!directoryExists(llvmBinDir)) {
     throw new Error(`Could not locate LLVM at ${llvmBinDir}.`);
@@ -206,99 +143,6 @@ function findArm64Env() {
   };
 }
 
-function cleanArtifactsDir() {
-  fs.rmSync(artifactsDir, { recursive: true, force: true });
-  fs.mkdirSync(artifactsDir, { recursive: true });
-}
-
-function copyPortableExe(target, suffix) {
-  const sourcePath = path.join(targetDir, target, "release", `${portableBinaryName}.exe`);
-  if (!fileExists(sourcePath)) {
-    throw new Error(`Expected build output was not found: ${sourcePath}`);
-  }
-
-  const destinationPath = path.join(artifactsDir, `codex-switcher-${suffix}.exe`);
-  fs.copyFileSync(sourcePath, destinationPath);
-  return destinationPath;
-}
-
-async function stampExeIcon(exePath) {
-  if (!fileExists(exeIconPath)) {
-    throw new Error(`Could not locate the Windows icon at ${exeIconPath}.`);
-  }
-
-  const module = await import("rcedit");
-  const rcedit = module.rcedit ?? module.default ?? module;
-
-  if (typeof rcedit !== "function") {
-    throw new Error("The rcedit package did not export a callable function.");
-  }
-
-  await new Promise((resolve, reject) => {
-    let settled = false;
-    const finish = (error) => {
-      if (settled) return;
-      settled = true;
-      if (error) {
-        reject(error);
-      } else {
-        resolve();
-      }
-    };
-
-    try {
-      const result = rcedit(exePath, { icon: exeIconPath }, (error) => finish(error));
-      if (result && typeof result.then === "function") {
-        result.then(() => finish(), (error) => finish(error));
-      } else if (rcedit.length < 3) {
-        finish();
-      }
-    } catch (error) {
-      finish(error);
-    }
-  });
-}
-
-async function main() {
-  cleanArtifactsDir();
-  runShell("corepack pnpm build");
-
-  for (const build of builds) {
-    ensureToolchainInstalled(build.toolchain);
-
-    const env = {
-      RUSTUP_TOOLCHAIN: build.toolchain,
-      ...(build.arch === "arm64" ? findArm64Env() : findMsvcEnv(build.arch)),
-    };
-
-    run(
-      "rustup",
-      [
-        "run",
-        build.toolchain,
-        "cargo",
-        "build",
-        "--release",
-        "--bin",
-        portableBinaryName,
-        "--target",
-        build.target,
-        "--manifest-path",
-        cargoManifestPath,
-      ],
-      env
-    );
-
-    const exePath = copyPortableExe(build.target, build.suffix);
-    await stampExeIcon(exePath);
-  }
-
-  console.log(`Portable Windows builds are ready in ${artifactsDir}`);
-}
-
-try {
-  await main();
-} catch (error) {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exit(1);
+export function hasArm64WindowsRustHost() {
+  return process.platform === "win32" && process.arch === "arm64";
 }

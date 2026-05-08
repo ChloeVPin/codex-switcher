@@ -1,22 +1,22 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Codex Switcher",
-  "version": "0.1.7",
+  "version": "1.1.0",
   "identifier": "com.lampese.codex-switcher",
   "build": {
-    "beforeDevCommand": "pnpm dev",
-    "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "pnpm build",
+    "beforeDevCommand": "corepack pnpm dev:ui",
+    "devUrl": "http://127.0.0.1:1420",
+    "beforeBuildCommand": "corepack pnpm build",
     "frontendDist": "../dist"
   },
   "app": {
     "windows": [
       {
         "title": "Codex Switcher",
-        "width": 900,
-        "height": 700,
-        "minWidth": 600,
-        "minHeight": 500
+        "width": 1560,
+        "height": 860,
+        "minWidth": 1280,
+        "minHeight": 720
       }
     ],
     "security": {
@@ -39,7 +39,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEI0MUQ4MjE5MjMxNkMxRjgKUldUNHdSWWpHWUlkdFBvWENvQ0d4aG1BdVVueUlTWXAxQmprMFBCOEsxT2NmakhQY0FxbjNsb3cK",
       "endpoints": [
-        "https://github.com/Lampese/codex-switcher/releases/latest/download/latest.json"
+        "https://github.com/ChloeVPin/codex-switcher/releases/latest/download/latest.json"
       ]
     }
   }

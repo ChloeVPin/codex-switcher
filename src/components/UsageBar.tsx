@@ -36,6 +36,51 @@ function formatWindowDuration(minutes: number | null | undefined): string {
   return `${Math.floor(hours / 24)}d`;
 }
 
+function extractHumanErrorMessage(error: string): string {
+  const compact = error.replace(/\s+/g, " ").trim();
+  const messageMatch = compact.match(/"message"\s*:\s*"([^"]+)"/i);
+
+  if (messageMatch?.[1]) {
+    return messageMatch[1];
+  }
+
+  return compact;
+}
+
+function getUsageErrorCopy(error: string) {
+  const normalized = error.toLowerCase();
+  const detail = extractHumanErrorMessage(error);
+
+  if (
+    normalized.includes("unauthorized") ||
+    normalized.includes("refresh token") ||
+    normalized.includes("sign in again") ||
+    normalized.includes("401")
+  ) {
+    return {
+      title: "This account needs to sign in again.",
+      detail: "The saved session expired. Re-authenticate from Add Account or import a fresh auth.json.",
+    };
+  }
+
+  if (
+    normalized.includes("network") ||
+    normalized.includes("timeout") ||
+    normalized.includes("fetch") ||
+    normalized.includes("unavailable")
+  ) {
+    return {
+      title: "Usage temporarily unavailable.",
+      detail: "The app couldn't reach the service just now. Try again in a moment.",
+    };
+  }
+
+  return {
+    title: "Usage unavailable.",
+    detail: detail.length > 180 ? `${detail.slice(0, 177).trimEnd()}...` : detail,
+  };
+}
+
 function RateLimitBar({
   label,
   usedPercent,
@@ -85,7 +130,7 @@ export function UsageBar({ usage, loading }: UsageBarProps) {
   if (loading && !usage) {
     return (
       <div className="space-y-2">
-        <div className="text-xs text-gray-400 italic animate-pulse">Fetching usage...</div>
+        <div className="text-xs text-gray-400 italic animate-pulse">Checking usage...</div>
         <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden animate-pulse">
           <div className="h-full w-2/3 bg-gray-200" />
         </div>
@@ -97,11 +142,18 @@ export function UsageBar({ usage, loading }: UsageBarProps) {
   }
 
   if (!usage) {
-    return <div className="text-xs text-gray-400 italic py-1 animate-pulse">Fetching usage...</div>;
+    return <div className="text-xs text-gray-400 italic py-1 animate-pulse">Checking usage...</div>;
   }
 
   if (usage.error) {
-    return <div className="text-xs text-gray-400 italic py-1">{usage.error}</div>;
+    const copy = getUsageErrorCopy(usage.error);
+
+    return (
+      <div className="space-y-1">
+        <div className="text-xs font-medium text-red-500">{copy.title}</div>
+        <div className="text-[11px] leading-relaxed text-gray-400 break-words">{copy.detail}</div>
+      </div>
+    );
   }
 
   const hasPrimary =
@@ -110,7 +162,7 @@ export function UsageBar({ usage, loading }: UsageBarProps) {
     usage.secondary_used_percent !== null && usage.secondary_used_percent !== undefined;
 
   if (!hasPrimary && !hasSecondary) {
-    return <div className="text-xs text-gray-400 italic py-1">No rate limit data</div>;
+    return <div className="text-xs text-gray-400 italic py-1">Usage data will appear after the next sync.</div>;
   }
 
   return (

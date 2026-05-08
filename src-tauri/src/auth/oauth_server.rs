@@ -1,4 +1,4 @@
-
+﻿
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
@@ -355,28 +355,125 @@ async fn handle_oauth_request(
                     chatgpt_account_id,
                 );
 
-                let success_html = r#"<!DOCTYPE html>
-<html>
+                let logo_data_url = format!(
+                    "data:image/png;base64,{}",
+                    base64::engine::general_purpose::STANDARD.encode(include_bytes!("../../../public/app-logo.png"))
+                );
+
+                let success_html = format!(r#"<!DOCTYPE html>
+<html lang="en">
 <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Login Successful</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
-        .container { text-align: center; background: white; padding: 40px 60px; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
-        h1 { color: #333; margin-bottom: 10px; }
-        p { color: #666; }
-        .checkmark { font-size: 48px; margin-bottom: 20px; }
+        :root {{
+            color-scheme: dark;
+            --bg: #060a12;
+            --panel: #0f0f0f;
+            --line: rgba(255, 255, 255, 0.1);
+            --line-strong: rgba(255, 87, 34, 0.28);
+            --text: #f8fafc;
+            --muted: rgba(226, 232, 240, 0.72);
+            --accent: #ff5722;
+        }}
+        * {{ box-sizing: border-box; }}
+        body {{
+            margin: 0;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            background:
+                radial-gradient(circle at 20% 15%, rgba(255, 87, 34, 0.16), transparent 22%),
+                radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.06), transparent 24%),
+                linear-gradient(180deg, rgba(6, 10, 18, 0.94), rgba(6, 10, 18, 0.98)),
+                var(--bg);
+            color: var(--text);
+            font-family: "Geist", "Segoe UI", system-ui, sans-serif;
+            overflow: hidden;
+        }}
+        .frame {{
+            width: min(560px, calc(100vw - 32px));
+            padding: 18px;
+            border: 1px solid var(--line);
+            background: rgba(15, 15, 15, 0.96);
+            box-shadow: 0 28px 90px rgba(0, 0, 0, 0.45);
+        }}
+        .card {{
+            display: grid;
+            gap: 14px;
+            padding: 22px;
+            border: 1px solid var(--line-strong);
+            background: linear-gradient(180deg, rgba(20, 20, 20, 0.98), rgba(15, 15, 15, 0.98));
+        }}
+        .brand {{
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }}
+        .logo-box {{
+            width: 46px;
+            height: 46px;
+            display: grid;
+            place-items: center;
+            border: 1px solid rgba(255, 87, 34, 0.24);
+            background: rgba(255, 87, 34, 0.08);
+            overflow: hidden;
+            flex: none;
+        }}
+        .logo-box img {{
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }}
+        .brand-copy {{
+            display: grid;
+            gap: 2px;
+        }}
+        .brand-copy strong {{
+            font-size: 1rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+        }}
+        .brand-copy span {{
+            color: var(--muted);
+            font-size: 0.74rem;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+        }}
+        .status h1 {{
+            margin: 0;
+            font-size: clamp(1.6rem, 3vw, 2.2rem);
+            line-height: 1.05;
+            letter-spacing: -0.03em;
+        }}
+        .status p {{
+            margin: 0;
+            color: var(--muted);
+            font-size: 0.96rem;
+            line-height: 1.55;
+        }}
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="checkmark">✓</div>
-        <h1>Login Successful!</h1>
-        <p>You can close this window and return to Codex Switcher.</p>
-    </div>
+    <main class="frame" role="main" aria-label="Login complete">
+        <section class="card">
+            <div class="brand">
+                <div class="logo-box" aria-hidden="true"><img src="{logo}" alt="" /></div>
+                <div class="brand-copy">
+                    <strong>Codex Switcher</strong>
+                    <span>Login complete</span>
+                </div>
+            </div>
+            <div class="status">
+                <h1>You’re signed in.</h1>
+                <p>Your account was added successfully. You can close this window and return to Codex Switcher.</p>
+            </div>
+        </section>
+    </main>
 </body>
-</html>"#;
-
-                let response = Response::from_string(success_html).with_header(
+</html>"#, logo = logo_data_url);                let response = Response::from_string(success_html).with_header(
                     Header::from_bytes(&b"Content-Type"[..], &b"text/html; charset=utf-8"[..])
                         .unwrap(),
                 );
@@ -405,3 +502,6 @@ pub async fn wait_for_oauth_login(
     let result = rx.await.context("OAuth login was cancelled")??;
     Ok(result.account)
 }
+
+
+

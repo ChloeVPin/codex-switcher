@@ -37,7 +37,7 @@ function SidebarActionButton({
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className={`sidebar-action-button sidebar-action-button--${tone}`}
+      className={`btn-mono sidebar-action-button sidebar-action-button--${tone}`}
     >
       <span className="sidebar-action-button__icon">{icon}</span>
       <span className="sidebar-action-button__label">{label}</span>

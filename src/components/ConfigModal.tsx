@@ -41,7 +41,7 @@ export function ConfigModal({
           <button
             type="button"
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="modal-close-button text-gray-400 hover:text-gray-200 transition-colors"
             aria-label="Close modal"
           >
             <Close fontSize="small" />
@@ -84,7 +84,7 @@ export function ConfigModal({
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2.5 text-sm font-medium rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
+            className="btn-mono px-4 py-2.5 text-sm font-medium rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
           >
             Close
           </button>
@@ -93,7 +93,7 @@ export function ConfigModal({
               type="button"
               onClick={onCopy}
               disabled={!payload || isExportingSlim}
-              className="px-4 py-2.5 text-sm font-medium rounded-lg bg-gray-900 hover:bg-gray-800 text-white transition-colors disabled:opacity-50 inline-flex items-center gap-2"
+              className="btn-mono px-4 py-2.5 text-sm font-medium rounded-lg bg-gray-900 hover:bg-gray-800 text-white transition-colors disabled:opacity-50 inline-flex items-center gap-2"
             >
               {copied ? <DownloadRounded fontSize="small" /> : <ContentCopyOutlined fontSize="small" />}
               {copied ? "Copied" : "Copy String"}
@@ -103,7 +103,7 @@ export function ConfigModal({
               type="button"
               onClick={onImport}
               disabled={isImportingSlim}
-              className="px-4 py-2.5 text-sm font-medium rounded-lg bg-gray-900 hover:bg-gray-800 text-white transition-colors disabled:opacity-50 inline-flex items-center gap-2"
+              className="btn-mono px-4 py-2.5 text-sm font-medium rounded-lg bg-gray-900 hover:bg-gray-800 text-white transition-colors disabled:opacity-50 inline-flex items-center gap-2"
             >
               <FileUploadOutlined fontSize="small" />
               {isImportingSlim ? "Importing..." : "Import Missing Accounts"}

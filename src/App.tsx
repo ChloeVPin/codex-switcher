@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AddAccountModal } from "./components";
 import { ConfigModal } from "./components/ConfigModal";
+import { AttentionDrawer, type AttentionAccountItem } from "./components/AttentionDrawer";
+import { ToastHost, type AppNotification, type NotificationVariant } from "./components/ToastHost";
 import { DashboardSidebar } from "./components/DashboardSidebar";
 import { DashboardWorkspace } from "./components/DashboardWorkspace";
+import { UpdateChecker } from "./components/UpdateChecker";
 import { useAccounts } from "./hooks/useAccounts";
 import type { CodexProcessInfo } from "./types";
 import {
@@ -12,7 +15,28 @@ import {
 } from "./lib/platform";
 import "./App.css";
 
-type ToastVariant = "success" | "error" | "info";
+function normalizeSearchText(value: string | null | undefined): string {
+  return (value ?? "").trim().toLowerCase();
+}
+
+function accountSearchBlob(account: {
+  name: string;
+  email: string | null;
+  plan_type: string | null;
+  auth_mode: string;
+  usage?: { error?: string | null } | undefined;
+}): string {
+  return [
+    account.name,
+    account.email,
+    account.plan_type,
+    account.auth_mode,
+    account.usage?.error,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
 
 function App() {
   const {
@@ -55,19 +79,16 @@ function App() {
   const [isImportingFull, setIsImportingFull] = useState(false);
   const [isWarmingAll, setIsWarmingAll] = useState(false);
   const [warmingUpId, setWarmingUpId] = useState<string | null>(null);
-  const [toast, setToast] = useState<{
-    id: number;
-    message: string;
-    variant: ToastVariant;
-    visible: boolean;
-  } | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [isAttentionDrawerOpen, setIsAttentionDrawerOpen] = useState(false);
   const [maskedAccounts, setMaskedAccounts] = useState<Set<string>>(new Set());
   const [otherAccountsSort, setOtherAccountsSort] = useState<
     "deadline_asc" | "deadline_desc" | "remaining_desc" | "remaining_asc"
   >("deadline_asc");
-  const toastIdRef = useRef(0);
-  const toastHideTimerRef = useRef<number | null>(null);
-  const toastRemoveTimerRef = useRef<number | null>(null);
+  const notificationIdRef = useRef(0);
+  const notificationSignatureRef = useRef<{ signature: string; at: number } | null>(null);
+  const staleAuthNoticeRef = useRef(0);
 
   const toggleMask = (accountId: string) => {
     setMaskedAccounts((prev) => {
@@ -117,47 +138,35 @@ function App() {
     });
   }, [loadMaskedAccountIds]);
 
-  const clearToastTimers = useCallback(() => {
-    if (toastHideTimerRef.current !== null) {
-      window.clearTimeout(toastHideTimerRef.current);
-      toastHideTimerRef.current = null;
-    }
-    if (toastRemoveTimerRef.current !== null) {
-      window.clearTimeout(toastRemoveTimerRef.current);
-      toastRemoveTimerRef.current = null;
-    }
-  }, []);
+  const addNotification = useCallback(
+    (message: string, variant: NotificationVariant = "success") => {
+      const now = Date.now();
+      const signature = `${variant}:${message}`;
+      const last = notificationSignatureRef.current;
+      if (last && last.signature === signature && now - last.at < 2500) {
+        return;
+      }
 
-  useEffect(() => {
-    return () => {
-      clearToastTimers();
-    };
-  }, [clearToastTimers]);
+      notificationSignatureRef.current = { signature, at: now };
+      const id = ++notificationIdRef.current;
 
-  const showToast = useCallback(
-    (message: string, variant: ToastVariant = "success", duration = 2500) => {
-      clearToastTimers();
-      const id = ++toastIdRef.current;
-      setToast({ id, message, variant, visible: true });
-
-      toastHideTimerRef.current = window.setTimeout(() => {
-        setToast((current) =>
-          current && current.id === id ? { ...current, visible: false } : current
-        );
-
-        toastRemoveTimerRef.current = window.setTimeout(() => {
-          setToast((current) => (current && current.id === id ? null : current));
-        }, 190);
-      }, duration);
+      setNotifications((current) => [
+        ...current,
+        { id, message, variant, createdAt: now },
+      ]);
     },
-    [clearToastTimers]
+    []
   );
+
+  const consumeNotification = useCallback((id: number) => {
+    setNotifications((current) => current.filter((item) => item.id !== id));
+  }, []);
 
   const handleSwitch = async (accountId: string) => {
     await checkProcesses();
-    if (processInfo && !processInfo.can_switch) {
-      return;
-    }
+      if (processInfo && !processInfo.can_switch) {
+        return;
+      }
 
     try {
       setSwitchingId(accountId);
@@ -173,7 +182,7 @@ function App() {
     if (deleteConfirmId !== accountId) {
       setDeleteConfirmId(accountId);
       setTimeout(() => setDeleteConfirmId(null), 3000);
-      showToast("Click delete again to confirm removal", "info", 3000);
+      addNotification("Click delete again to confirm removal", "info");
       return;
     }
 
@@ -189,7 +198,7 @@ function App() {
     setIsRefreshing(true);
     try {
       await refreshUsage();
-      showToast("Usage refreshed successfully", "success", 2000);
+      addNotification("Usage refreshed successfully", "success");
     } finally {
       setIsRefreshing(false);
     }
@@ -210,10 +219,10 @@ function App() {
     try {
       setWarmingUpId(accountId);
       await warmupAccount(accountId);
-      showToast(`Warm-up sent for ${accountName}`, "success");
+      addNotification(`Warm-up sent for ${accountName}`, "success");
     } catch (err) {
       console.error("Failed to warm up account:", err);
-      showToast(`Warm-up failed for ${accountName}: ${formatWarmupError(err)}`, "error");
+      addNotification(`Warm-up failed for ${accountName}: ${formatWarmupError(err)}`, "error");
     } finally {
       setWarmingUpId(null);
     }
@@ -224,23 +233,24 @@ function App() {
       setIsWarmingAll(true);
       const summary = await warmupAllAccounts();
       if (summary.total_accounts === 0) {
-        showToast("No accounts available for warm-up", "error");
+        addNotification("No accounts available for warm-up", "error");
         return;
       }
 
       if (summary.failed_account_ids.length === 0) {
-        showToast(
-          `Warm-up sent for all ${summary.warmed_accounts} account${summary.warmed_accounts === 1 ? "" : "s"}`
+        addNotification(
+          `Warm-up sent for all ${summary.warmed_accounts} account${summary.warmed_accounts === 1 ? "" : "s"}`,
+          "success"
         );
       } else {
-        showToast(
+        addNotification(
           `Warmed ${summary.warmed_accounts}/${summary.total_accounts}. Failed: ${summary.failed_account_ids.length}`,
           "error"
         );
       }
     } catch (err) {
       console.error("Failed to warm up all accounts:", err);
-      showToast(`Warm-up all failed: ${formatWarmupError(err)}`, "error");
+      addNotification(`Warm-up all failed: ${formatWarmupError(err)}`, "error");
     } finally {
       setIsWarmingAll(false);
     }
@@ -257,12 +267,12 @@ function App() {
       setIsExportingSlim(true);
       const payload = await exportAccountsSlimText();
       setConfigPayload(payload);
-      showToast(`Slim text exported (${accounts.length} accounts).`, "success");
+      addNotification(`Slim text exported (${accounts.length} accounts).`, "success");
     } catch (err) {
       console.error("Failed to export slim text:", err);
       const message = err instanceof Error ? err.message : String(err);
       setConfigModalError(message);
-      showToast("Slim export failed", "error");
+      addNotification("Slim export failed", "error");
     } finally {
       setIsExportingSlim(false);
     }
@@ -288,14 +298,15 @@ function App() {
       const summary = await importAccountsSlimText(configPayload);
       setMaskedAccounts(new Set());
       setIsConfigModalOpen(false);
-      showToast(
-        `Imported ${summary.imported_count}, skipped ${summary.skipped_count} (total ${summary.total_in_payload})`
+      addNotification(
+        `Imported ${summary.imported_count}, skipped ${summary.skipped_count} (total ${summary.total_in_payload})`,
+        "success"
       );
     } catch (err) {
       console.error("Failed to import slim text:", err);
       const message = err instanceof Error ? err.message : String(err);
       setConfigModalError(message);
-      showToast("Slim import failed", "error");
+      addNotification("Slim import failed", "error");
     } finally {
       setIsImportingSlim(false);
     }
@@ -306,10 +317,10 @@ function App() {
       setIsExportingFull(true);
       const exported = await exportFullBackupFile();
       if (!exported) return;
-      showToast("Full encrypted file exported.", "success");
+      addNotification("Full encrypted file exported.", "success");
     } catch (err) {
       console.error("Failed to export full encrypted file:", err);
-      showToast("Full export failed", "error");
+      addNotification("Full export failed", "error");
     } finally {
       setIsExportingFull(false);
     }
@@ -324,12 +335,13 @@ function App() {
       await refreshUsage(accountList);
       const maskedIds = await loadMaskedAccountIds();
       setMaskedAccounts(new Set(maskedIds));
-      showToast(
-        `Imported ${summary.imported_count}, skipped ${summary.skipped_count} (total ${summary.total_in_payload})`
+      addNotification(
+        `Imported ${summary.imported_count}, skipped ${summary.skipped_count} (total ${summary.total_in_payload})`,
+        "success"
       );
     } catch (err) {
       console.error("Failed to import full encrypted file:", err);
-      showToast("Full import failed", "error");
+      addNotification("Full import failed", "error");
     } finally {
       setIsImportingFull(false);
     }
@@ -350,6 +362,7 @@ function App() {
   const activeAccount = accounts.find((a) => a.is_active);
   const otherAccounts = accounts.filter((a) => !a.is_active);
   const hasRunningProcesses = Boolean(processInfo && processInfo.count > 0);
+  const normalizedQuery = normalizeSearchText(searchQuery);
 
   const sortedOtherAccounts = useMemo(() => {
     const getResetDeadline = (resetAt: number | null | undefined) =>
@@ -394,8 +407,56 @@ function App() {
     });
   }, [otherAccounts, otherAccountsSort]);
 
+  const visibleOtherAccounts = useMemo(() => {
+    if (!normalizedQuery) return sortedOtherAccounts;
+    return sortedOtherAccounts.filter((account) => accountSearchBlob(account).includes(normalizedQuery));
+  }, [normalizedQuery, sortedOtherAccounts]);
+
+  const attentionAccounts = useMemo<AttentionAccountItem[]>(
+    () =>
+      accounts
+        .filter((account) => {
+          const error = account.usage?.error?.toLowerCase() ?? "";
+          return (
+            error.includes("unauthorized") ||
+            error.includes("refresh token") ||
+            error.includes("sign in again") ||
+            error.includes("401")
+          );
+        })
+        .map((account) => ({
+          id: account.id,
+          name: account.name,
+          email: account.email,
+          issue:
+            account.usage?.error?.trim() ||
+            "This saved session needs to sign in again before usage can refresh.",
+        })),
+    [accounts]
+  );
+
+  const staleAuthCount = useMemo(
+    () => attentionAccounts.length,
+    [attentionAccounts]
+  );
+
+  useEffect(() => {
+    if (staleAuthCount > 0 && staleAuthNoticeRef.current !== staleAuthCount) {
+      staleAuthNoticeRef.current = staleAuthCount;
+      addNotification(
+        `${staleAuthCount} saved session${staleAuthCount === 1 ? "" : "s"} need sign-in again.`,
+        "warning"
+      );
+      return;
+    }
+
+    if (staleAuthCount === 0) {
+      staleAuthNoticeRef.current = 0;
+    }
+  }, [addNotification, staleAuthCount]);
+
   return (
-    <div className="app-shell min-h-screen text-slate-900">
+    <div className="app-shell min-h-screen">
       <DashboardSidebar
         activeAccount={activeAccount}
         activeAccountMasked={Boolean(activeAccount && maskedAccounts.has(activeAccount.id))}
@@ -425,9 +486,11 @@ function App() {
         accounts={accounts}
         activeAccount={activeAccount}
         otherAccounts={otherAccounts}
-        sortedOtherAccounts={sortedOtherAccounts}
+        visibleOtherAccounts={visibleOtherAccounts}
         otherAccountsSort={otherAccountsSort}
         onOtherAccountsSortChange={setOtherAccountsSort}
+        searchQuery={searchQuery}
+        onSearchQueryChange={setSearchQuery}
         onAddAccount={() => setIsAddModalOpen(true)}
         onSwitch={handleSwitch}
         onWarmupAccount={handleWarmupAccount}
@@ -440,6 +503,8 @@ function App() {
         hasRunningProcesses={hasRunningProcesses}
         maskedAccounts={maskedAccounts}
         onToggleMask={toggleMask}
+        attentionCount={staleAuthCount}
+        onAttentionClick={() => setIsAttentionDrawerOpen(true)}
       />
 
       <AddAccountModal
@@ -465,24 +530,20 @@ function App() {
         onImport={handleImportSlimText}
       />
 
-      {toast && (
-        <div
-          key={toast.id}
-          className={`liquid-toast fixed top-6 left-1/2 z-[60] max-w-[calc(100vw-2rem)] px-4 py-3 text-sm ${
-            toast.visible ? "liquid-toast--visible" : "liquid-toast--hidden"
-          } ${
-            toast.variant === "error"
-              ? "liquid-toast--error"
-              : toast.variant === "info"
-                ? "liquid-toast--info"
-                : "liquid-toast--success"
-          }`}
-          role="status"
-          aria-live="polite"
-        >
-          {toast.message}
-        </div>
-      )}
+      <UpdateChecker onNotify={addNotification} />
+
+      <AttentionDrawer
+        isOpen={isAttentionDrawerOpen}
+        attentionAccounts={attentionAccounts}
+        onClose={() => setIsAttentionDrawerOpen(false)}
+        onAddAccount={() => setIsAddModalOpen(true)}
+      />
+
+      <ToastHost
+        notifications={notifications}
+        onConsume={consumeNotification}
+      />
+
     </div>
   );
 }

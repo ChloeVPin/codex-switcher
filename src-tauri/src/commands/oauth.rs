@@ -31,6 +31,7 @@ pub async fn start_login(account_name: String) -> Result<OAuthLoginInfo, String>
 
     {
         let mut pending = PENDING_OAUTH.lock().unwrap();
+        *pending = Some(PendingOAuth { rx, cancelled });
     }
 
     Ok(info)

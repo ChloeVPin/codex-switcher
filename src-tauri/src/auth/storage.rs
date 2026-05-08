@@ -170,9 +170,9 @@ pub fn update_account_metadata(
 
 pub fn update_account_chatgpt_tokens(
     account_id: &str,
-    id_token: String,
-    access_token: String,
-    refresh_token: String,
+    _id_token: String,
+    _access_token: String,
+    _refresh_token: String,
     chatgpt_account_id: Option<String>,
     email: Option<String>,
     plan_type: Option<String>,
@@ -187,12 +187,12 @@ pub fn update_account_chatgpt_tokens(
 
     match &mut account.auth_data {
         AuthData::ChatGPT {
-            id_token: stored_id_token,
-            access_token: stored_access_token,
-            refresh_token: stored_refresh_token,
-            account_id: stored_account_id,
+            id_token: _stored_id_token,
+            access_token: _stored_access_token,
+            refresh_token: _stored_refresh_token,
+            account_id: _stored_account_id,
         } => {
-            if let Some(new_account_id) = chatgpt_account_id {
+            if let Some(_new_account_id) = chatgpt_account_id {
             }
         }
         AuthData::ApiKey { .. } => {

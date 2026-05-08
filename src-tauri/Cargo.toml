@@ -1,8 +1,8 @@
 [package]
 name = "codex-switcher"
-version = "0.1.7"
+version = "1.1.0"
 description = "A multi-account manager for Codex CLI"
-authors = ["lampese"]
+authors = ["ChloeVPin"]
 edition = "2021"
 default-run = "codex-switcher"
 
@@ -10,8 +10,11 @@ default-run = "codex-switcher"
 name = "codex_switcher_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(mobile)'] }
+
 [dependencies]
-tauri = { version = "2.10", features = [] }
+tauri = { version = "2.10", features = ["image-png"] }
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2.6"
 tauri-plugin-process = "2"
@@ -25,6 +28,8 @@ uuid = { version = "1", features = ["v4", "serde"] }
 dirs = "6"
 tiny_http = "0.12"
 webbrowser = "1"
+tao = "0.34.6"
+wry = "0.54.3"
 base64 = "0.22"
 sha2 = "0.10"
 rand = "0.9"
@@ -37,3 +42,7 @@ flate2 = "1"
 chacha20poly1305 = "0.10"
 pbkdf2 = "0.12"
 include_dir = "0.7"
+image = { version = "0.25", default-features = false, features = ["png"] }
+
+[build-dependencies]
+tauri-build = { version = "2.6.0", features = [] }

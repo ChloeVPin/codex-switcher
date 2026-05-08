@@ -2,10 +2,25 @@ import type { ImportAccountsSummary } from "../types";
 
 export type FileSource = string | File;
 
+type BrowserWindowWithPickers = Window & {
+  showOpenFilePicker?: (options?: any) => Promise<FileSystemFileHandle[]>;
+  showSaveFilePicker?: (options?: any) => Promise<FileSystemFileHandle>;
+};
+
+function getBrowserWindowWithPickers(): BrowserWindowWithPickers | null {
+  if (typeof window === "undefined") return null;
+  return window as BrowserWindowWithPickers;
+}
+
 export async function invokeBackend<T>(
   command: string,
   args?: Record<string, unknown>
 ): Promise<T> {
+  if (isTauriRuntime()) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke<T>(command, args ?? {});
+  }
+
   const response = await fetch(`/api/invoke/${command}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -25,24 +40,138 @@ export async function invokeBackend<T>(
 }
 
 export async function openExternalUrl(url: string): Promise<void> {
+  if (isTauriRuntime()) {
+    const { openUrl } = await import("@tauri-apps/plugin-opener");
+    await openUrl(url);
+    return;
+  }
+
   window.open(url, "_blank", "noopener,noreferrer");
 }
 
 export async function pickAuthJsonFile(): Promise<FileSource | null> {
+  if (isTauriRuntime()) {
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const selected = await open({
+      multiple: false,
+      directory: false,
+      title: "Choose an auth.json file",
+      filters: [{ name: "Auth JSON", extensions: ["json"] }],
+    });
+
+    return typeof selected === "string" ? selected : null;
+  }
+
+  const browserWindow = getBrowserWindowWithPickers();
+
+  if (browserWindow && typeof browserWindow.showOpenFilePicker === "function") {
+    const [handle] = await browserWindow.showOpenFilePicker({
+      multiple: false,
+      types: [
+        {
+          description: "Auth JSON",
+          accept: {
+            "application/json": [".json"],
+          },
+        },
+      ],
+    });
+
+    return handle.getFile();
+  }
+
   return pickBrowserFile(".json,application/json");
 }
 
 export async function exportFullBackupFile(): Promise<boolean> {
+  if (isTauriRuntime()) {
+    const { save } = await import("@tauri-apps/plugin-dialog");
+    const path = await save({
+      title: "Save full backup",
+      defaultPath: "codex-switcher-full.cswf",
+      filters: [
+        {
+          name: "Codex Switcher backup",
+          extensions: ["cswf"],
+        },
+      ],
+    });
+
+    if (!path) return false;
+
+    await invokeBackend<void>("export_accounts_full_encrypted_file", { path });
+    return true;
+  }
+
   const contentsBase64 = await invokeBackend<string>("export_accounts_full_encrypted_bytes");
-  downloadBase64File(
-    contentsBase64,
-    "codex-switcher-full.cswf",
-    "application/octet-stream"
-  );
-  return true;
+  const contents = base64ToBytes(contentsBase64);
+
+  const browserWindow = getBrowserWindowWithPickers();
+
+  if (browserWindow && typeof browserWindow.showSaveFilePicker === "function") {
+    const handle = await browserWindow.showSaveFilePicker({
+      suggestedName: "codex-switcher-full.cswf",
+      types: [
+        {
+          description: "Codex Switcher backup",
+          accept: {
+            "application/octet-stream": [".cswf"],
+          },
+        },
+      ],
+    });
+
+    const writable = await handle.createWritable();
+    try {
+      await writable.write(contents);
+    } finally {
+      await writable.close();
+    }
+
+    return true;
+  }
+
+  throw new Error("Choose a browser that supports saving files, or use the desktop app.");
 }
 
 export async function importFullBackupFile(): Promise<ImportAccountsSummary | null> {
+  if (isTauriRuntime()) {
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const selected = await open({
+      multiple: false,
+      directory: false,
+      title: "Choose a full backup file",
+      filters: [{ name: "Codex Switcher backup", extensions: ["cswf"] }],
+    });
+
+    if (typeof selected !== "string") return null;
+    return invokeBackend<ImportAccountsSummary>("import_accounts_full_encrypted_file", {
+      path: selected,
+    });
+  }
+
+  const browserWindow = getBrowserWindowWithPickers();
+
+  if (browserWindow && typeof browserWindow.showOpenFilePicker === "function") {
+    const [handle] = await browserWindow.showOpenFilePicker({
+      multiple: false,
+      types: [
+        {
+          description: "Codex Switcher backup",
+          accept: {
+            "application/octet-stream": [".cswf"],
+          },
+        },
+      ],
+    });
+
+    const file = await handle.getFile();
+    const contentsBase64 = await fileToBase64(file);
+    return invokeBackend<ImportAccountsSummary>("import_accounts_full_encrypted_bytes", {
+      contentsBase64,
+    });
+  }
+
   const selected = await pickBrowserFile(".cswf,application/octet-stream");
   if (!selected) return null;
 
@@ -69,11 +198,7 @@ async function fileToBase64(file: File): Promise<string> {
   return window.btoa(binary);
 }
 
-function downloadBase64File(
-  base64: string,
-  fileName: string,
-  mimeType: string
-): void {
+function base64ToBytes(base64: string): Uint8Array {
   const binary = window.atob(base64);
   const bytes = new Uint8Array(binary.length);
 
@@ -81,16 +206,7 @@ function downloadBase64File(
     bytes[index] = binary.charCodeAt(index);
   }
 
-  const blob = new Blob([bytes], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  link.style.display = "none";
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  return bytes;
 }
 
 async function pickBrowserFile(accept: string): Promise<File | null> {
@@ -138,4 +254,9 @@ async function readJsonResponse(response: Response): Promise<any> {
   } catch {
     return { error: text };
   }
+}
+
+export function isTauriRuntime(): boolean {
+  if (typeof window === "undefined") return false;
+  return Boolean((window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__);
 }
