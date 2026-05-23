@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  It keeps account switching, usage checks, and import/export in one place — on Windows, macOS, and Linux.
+  It keeps account switching, usage checks, and import/export in one place - on Windows, macOS, and Linux.
 </p>
 
 ## What It Does
@@ -23,11 +23,11 @@
 
 ## Project Layout
 
-- `src/` — React UI
-- `src-tauri/` — Rust backend, Tauri app shell, and account logic
-- `src-tauri/src/platform.rs` — cross-platform path resolution
-- `scripts/` — build and release helpers
-- `public/` — logo and static assets
+- `src/` - React UI
+- `src-tauri/` - Rust backend, Tauri app shell, and account logic
+- `src-tauri/src/platform.rs` - cross-platform path resolution
+- `scripts/` - build and release helpers
+- `public/` - logo and static assets
 
 ## Install
 
@@ -37,7 +37,7 @@
 - pnpm
 - Rust toolchain (`rustup`)
 
-**Linux only** — install system libraries before building:
+**Linux only** - install system libraries before building:
 
 ```bash
 sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
@@ -91,7 +91,7 @@ Builds the native Tauri app for the current platform. The frontend is embedded i
 
 Linux `deb` and `rpm` packages include a desktop launcher entry so the app appears in standard app menus. AppImage builds use the same app identity and icon.
 
-> Linux x86 is not published as a desktop target — modern WebKitGTK and Tauri effectively require 64-bit.
+> Linux x86 is not published as a desktop target - modern WebKitGTK and Tauri effectively require 64-bit.
 
 ## Portable Windows Builds
 
