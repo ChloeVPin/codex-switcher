@@ -28,9 +28,18 @@ jobs:
           - platform: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             name: linux-x64
+          - platform: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+            name: linux-arm64
           - platform: windows-latest
             target: x86_64-pc-windows-msvc
             name: windows-x64
+          - platform: windows-latest
+            target: i686-pc-windows-msvc
+            name: windows-x86
+          - platform: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            name: windows-arm64
 
     runs-on: ${{ matrix.platform }}
 
@@ -54,13 +63,16 @@ jobs:
           targets: ${{ matrix.target }}
 
       - name: Install dependencies (Ubuntu)
-        if: matrix.platform == 'ubuntu-22.04'
+        if: startsWith(matrix.platform, 'ubuntu-')
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
       - name: Install frontend dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
+
+      - name: Test frontend and Rust
+        run: pnpm test
 
       - name: Determine tag
         id: tag
@@ -86,7 +98,7 @@ jobs:
           prerelease: false
           includeUpdaterJson: true
           updaterJsonKeepUniversal: true
-          args: --target ${{ matrix.target }}
+          args: --target ${{ matrix.target }} --features bundle-frontend
 
   windows-portable:
     needs: publish
@@ -114,7 +126,7 @@ jobs:
           targets: x86_64-pc-windows-msvc,i686-pc-windows-msvc,aarch64-pc-windows-msvc
 
       - name: Install frontend dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: Determine tag
         id: tag
@@ -136,7 +148,7 @@ jobs:
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
           files: |
-            artifacts/windows/codex-switcher-x32.exe
+            artifacts/windows/codex-switcher-x86.exe
             artifacts/windows/codex-switcher-x64.exe
             artifacts/windows/codex-switcher-arm64.exe
           fail_on_unmatched_files: true

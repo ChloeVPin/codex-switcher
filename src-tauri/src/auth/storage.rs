@@ -4,11 +4,11 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 
+use crate::platform::switcher_config_dir;
 use crate::types::{AccountsStore, AuthData, StoredAccount};
 
 pub fn get_config_dir() -> Result<PathBuf> {
-    let home = dirs::home_dir().context("Could not find home directory")?;
-    Ok(home.join(".codex-switcher"))
+    switcher_config_dir()
 }
 
 pub fn get_accounts_file() -> Result<PathBuf> {

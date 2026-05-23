@@ -1,109 +1,131 @@
-<p align="center">
-  <img src="public/app-logo.png" alt="Codex Switcher logo" width="128" height="128">
-</p>
+![Codex Switcher logo](public/app-logo.png)
 
-<h1 align="center">Codex Switcher</h1>
+# Codex Switcher
 
-<p align="center">Codex account control in a native desktop shell.</p>
+Codex Switcher is a native desktop app for managing Codex/OpenAI accounts locally.
 
-<p align="center">
-  Version 1.1 ships a Tauri desktop app, GitHub Release updates, and portable Windows builds.
-</p>
+It keeps account switching, usage checks, and import/export in one place — on Windows, macOS, and Linux.
 
-## What it does
+## What It Does
 
 - Manages multiple Codex/OpenAI accounts locally
 - Switches the active account by writing `auth.json`
 - Shows usage data for each account
 - Sends warm-up requests when needed
 - Imports and exports accounts from `auth.json` or encrypted backups
-- Runs as a native Tauri desktop app first
-- Publishes portable Windows EXEs for x86, x64, and arm64
-- Checks GitHub Releases for updates
+- Checks GitHub Releases for updates automatically
 
-## Repository Layout
+## Project Layout
 
-- `src/` React UI
-- `src-tauri/` Rust backend, Tauri app shell, and account logic
-- `scripts/` build and release helpers
-- `public/` logo and static assets
+- `src/` — React UI
+- `src-tauri/` — Rust backend, Tauri app shell, and account logic
+- `src-tauri/src/platform.rs` — cross-platform path resolution
+- `scripts/` — build and release helpers
+- `public/` — logo and static assets
 
-## Getting Started
+## Install
 
 ### Prerequisites
 
 - Node.js 18+
 - pnpm
-- Rust toolchain
+- Rust toolchain (`rustup`)
 
-### Install
+**Linux only** — install system libraries before building:
+
+```bash
+sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+```
 
 ```bash
 pnpm install
 ```
 
-### Run Locally
+## Run Locally
 
 ```bash
 pnpm dev
 ```
 
-Starts the Tauri desktop app in a native webview window.
+Starts the native Tauri desktop app in a webview window. Works on Windows, macOS, and Linux.
 
-If you want the old browser-hosted dashboard instead:
+### Browser Dashboard
 
 ```bash
 pnpm dev:web
 ```
 
-### Build
+Builds the frontend and starts a local HTTP server, then opens the app in your default browser. Useful on platforms where the full Tauri dev environment is not set up, or for remote/LAN access. Works on all platforms.
+
+## Build
+
+### Frontend Only
 
 ```bash
 pnpm build
 ```
 
-### Build Desktop App
+Compiles the React app to `dist/`. Required before any Rust build that embeds the frontend.
+
+### Native Desktop App (Tauri)
 
 ```bash
 pnpm tauri:build
 ```
 
-Builds the native Tauri app for the current platform.
+Builds the native Tauri app for the current platform. The frontend is embedded into the binary at compile time.
 
-### Portable Windows EXEs
+#### Supported Release Targets
+
+| Platform | Architectures       |
+|----------|---------------------|
+| Windows  | x86, x64, arm64     |
+| macOS    | x64, arm64          |
+| Linux    | x64, arm64          |
+
+Linux `deb` and `rpm` packages include a desktop launcher entry so the app appears in standard app menus. AppImage builds use the same app identity and icon.
+
+> Linux x86 is not published as a desktop target — modern WebKitGTK and Tauri effectively require 64-bit.
+
+## Portable Windows Builds
+
+> **Windows only.** Requires Visual Studio Build Tools with C++ and LLVM (for arm64).
 
 ```bash
 pnpm build:windows
 ```
 
-Builds portable Windows executables for:
+Builds self-contained portable executables (no installer required):
 
-- `artifacts/windows/codex-switcher-x32.exe`
+- `artifacts/windows/codex-switcher-x86.exe`
 - `artifacts/windows/codex-switcher-x64.exe`
 - `artifacts/windows/codex-switcher-arm64.exe`
 
-These are release assets, not the primary desktop app.
+These embed the frontend and serve it through a local HTTP server in a lightweight webview window. They are published as GitHub Release assets alongside the primary installer packages.
 
-### Releases
+## Releases
 
-- GitHub Releases are the update source for the desktop app
-- `latest.json` is published alongside each signed desktop release
-- The updater checks the release channel automatically inside the app
+- GitHub Releases are the distribution channel for all platforms
+- `latest.json` is published with each signed release for the in-app updater
+- The app checks for updates automatically on startup
 
-## Configuration
+## Environment Variables
 
-- `CODEX_SWITCHER_WEB_HOST` sets the bind host for the legacy browser dashboard
-- `CODEX_SWITCHER_WEB_PORT` sets the port for the legacy browser dashboard
-- `CODEX_SWITCHER_WEB_OPEN_BROWSER=0` disables auto-open in legacy browser mode
-- `CODEX_HOME` changes the Codex auth directory target
+| Variable | Description |
+|----------|-------------|
+| `CODEX_HOME` | Overrides the Codex auth directory (default: `~/.codex`) |
+| `CODEX_SWITCHER_HOME` | Overrides where Codex Switcher stores its data (default: `~/.codex-switcher`) |
+| `CODEX_SWITCHER_WEB_HOST` | Bind host for the browser dashboard (default: `127.0.0.1`) |
+| `CODEX_SWITCHER_WEB_PORT` | Port for the browser dashboard (default: `3210`) |
+| `CODEX_SWITCHER_WEB_OPEN_BROWSER` | Set to `0` to disable auto-open in browser dashboard mode |
 
-## Security Notes
+## Data Handling
 
-- This tool only manages accounts you own or are authorized to manage.
-- It stores account data locally on your machine.
-- It can export encrypted backups for portability.
-- It does not use a cloud backend.
+- Manages only accounts you own or are authorized to use
+- All account data is stored locally on your machine
+- Encrypted backup export is available for portability
+- No account data is sent to any cloud service
 
 ## Why It Exists
 
-Codex account switching is easier when the account data, usage info, and import/export flow live in one local desktop app instead of being scattered across files and terminals.
+Managing multiple Codex accounts from the command line means juggling `auth.json` files by hand. Codex Switcher puts account switching, usage tracking, and import/export in one place, across all platforms.

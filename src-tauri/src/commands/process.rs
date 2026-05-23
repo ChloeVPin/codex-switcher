@@ -1,6 +1,8 @@
 
-use anyhow::Context;
 use std::process::Command;
+
+#[cfg(windows)]
+use anyhow::Context;
 
 #[cfg(windows)]
 use std::collections::HashSet;
@@ -48,47 +50,15 @@ pub async fn check_codex_processes() -> Result<CodexProcessInfo, String> {
 fn find_codex_processes() -> anyhow::Result<(Vec<u32>, usize)> {
     #[cfg(unix)]
     {
-        let mut pids = Vec::new();
-        let mut bg_count = 0;
-
         let output = Command::new("ps").args(["-eo", "pid,command"]).output();
-
         if let Ok(output) = output {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            for line in stdout.lines().skip(1) {
-                let line = line.trim();
-                if line.is_empty() {
-                    continue;
-                }
-
-                if let Some((pid_str, command)) = line.split_once(' ') {
-                    let command = command.trim();
-
-                    let executable = command.split_whitespace().next().unwrap_or("");
-
-                    let is_codex = executable == "codex" || executable.ends_with("/codex");
-
-                    let is_ide_plugin = is_ide_plugin_process(command);
-
-                    let is_switcher =
-                        command.contains("codex-switcher") || command.contains("Codex Switcher");
-
-                    if is_codex && !is_switcher {
-                        if let Ok(pid) = pid_str.trim().parse::<u32>() {
-                            if pid != std::process::id() && !pids.contains(&pid) {
-                                if is_ide_plugin {
-                                    bg_count += 1;
-                                } else {
-                                    pids.push(pid);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            return Ok(parse_unix_codex_processes(
+                &String::from_utf8_lossy(&output.stdout),
+                std::process::id(),
+            ));
         }
 
-        return Ok((pids, bg_count));
+        return Ok((Vec::new(), 0));
     }
 
     #[cfg(windows)]
@@ -98,6 +68,60 @@ fn find_codex_processes() -> anyhow::Result<(Vec<u32>, usize)> {
 
     #[allow(unreachable_code)]
     Ok((Vec::new(), 0))
+}
+
+#[cfg(unix)]
+fn parse_unix_codex_processes(stdout: &str, current_pid: u32) -> (Vec<u32>, usize) {
+    let mut pids = Vec::new();
+    let mut bg_count = 0;
+
+    for line in stdout.lines().skip(1) {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+
+        let Some((pid_str, command)) = line.split_once(char::is_whitespace) else {
+            continue;
+        };
+
+        let command = command.trim();
+        if !is_unix_codex_command(command) || is_switcher_process(command) {
+            continue;
+        }
+
+        let Ok(pid) = pid_str.trim().parse::<u32>() else {
+            continue;
+        };
+
+        if pid == current_pid || pids.contains(&pid) {
+            continue;
+        }
+
+        if is_ide_plugin_process(command) {
+            bg_count += 1;
+        } else {
+            pids.push(pid);
+        }
+    }
+
+    (pids, bg_count)
+}
+
+#[cfg(unix)]
+fn is_unix_codex_command(command: &str) -> bool {
+    let executable = command.split_whitespace().next().unwrap_or("");
+    let executable = executable.trim_matches('"').trim_matches('\'');
+
+    executable == "codex"
+        || executable.ends_with("/codex")
+        || executable.ends_with("/codex-cli")
+        || executable.ends_with("/codex.exe")
+}
+
+fn is_switcher_process(command: &str) -> bool {
+    let command = command.to_ascii_lowercase();
+    command.contains("codex-switcher") || command.contains("codex switcher")
 }
 
 #[cfg(windows)]
@@ -202,16 +226,18 @@ fn is_windows_codex_root_process(process: &WindowsCodexProcess) -> bool {
     let command = process.command_line.to_ascii_lowercase();
 
     name == "codex.exe"
-        && !command.contains("codex-switcher")
+        && !is_switcher_process(&command)
         && !command.contains("--type=")
         && !command.contains("resources\\codex.exe")
 }
 
 #[cfg(any(unix, windows))]
 fn is_ide_plugin_process(command: &str) -> bool {
+    let command = command.to_ascii_lowercase();
     command.contains(".antigravity")
         || command.contains("openai.chatgpt")
         || command.contains(".vscode")
+        || command.contains("visual studio code")
 }
 
 #[cfg(windows)]
@@ -244,4 +270,58 @@ where
     }
 
     false
+}
+
+#[cfg(test)]
+mod tests {
+    #[cfg(unix)]
+    use super::{is_ide_plugin_process, is_unix_codex_command, parse_unix_codex_processes};
+
+    #[cfg(unix)]
+    #[test]
+    fn parses_active_unix_codex_processes() {
+        let ps = r#"  PID COMMAND
+  10 /usr/bin/codex
+  11 /home/user/.vscode/extensions/openai.chatgpt/bin/codex app-server
+  12 /opt/Codex Switcher/codex-switcher
+  13 /tmp/codex-cli --login
+  14 /tmp/not-codex
+"#;
+
+        let (pids, background_count) = parse_unix_codex_processes(ps, 99);
+        assert_eq!(pids, vec![10, 13]);
+        assert_eq!(background_count, 1);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn ignores_current_pid_and_duplicate_unix_processes() {
+        let ps = r#"  PID COMMAND
+  10 codex
+  10 codex
+  11 codex
+"#;
+
+        let (pids, background_count) = parse_unix_codex_processes(ps, 11);
+        assert_eq!(pids, vec![10]);
+        assert_eq!(background_count, 0);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn recognizes_codex_executable_shapes() {
+        assert!(is_unix_codex_command("codex"));
+        assert!(is_unix_codex_command("/usr/local/bin/codex"));
+        assert!(is_unix_codex_command("\"/opt/codex-cli\" app-server"));
+        assert!(is_unix_codex_command("/mnt/c/Users/me/codex.exe"));
+        assert!(!is_unix_codex_command("/usr/local/bin/codex-switcher"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn detects_ide_plugin_processes_case_insensitively() {
+        assert!(is_ide_plugin_process("/Users/me/.VSCode/extensions/openai.chatgpt/codex"));
+        assert!(is_ide_plugin_process("/Applications/Visual Studio Code.app/codex"));
+        assert!(!is_ide_plugin_process("/usr/bin/codex"));
+    }
 }

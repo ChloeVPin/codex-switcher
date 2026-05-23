@@ -1,9 +1,13 @@
+use std::net::{TcpStream, ToSocketAddrs};
 use std::path::{Component, Path, PathBuf};
 use std::time::Duration;
 use std::thread;
 
 use anyhow::Context;
-use include_dir::{include_dir, Dir};
+use include_dir::Dir;
+
+#[cfg(feature = "bundle-frontend")]
+use include_dir::include_dir;
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -19,7 +23,11 @@ use crate::commands::{
     switch_account, warmup_account, warmup_all_accounts,
 };
 
-static DIST_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../dist");
+#[cfg(feature = "bundle-frontend")]
+static DIST_DIR: Option<Dir<'_>> = Some(include_dir!("$CARGO_MANIFEST_DIR/../dist"));
+
+#[cfg(not(feature = "bundle-frontend"))]
+static DIST_DIR: Option<Dir<'_>> = None;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -79,6 +87,7 @@ pub fn run_lan_server(host: &str, port: u16) -> anyhow::Result<()> {
     let address = format!("{host}:{bound_port}");
     println!("Codex Switcher web server listening on http://{address}");
     println!("Serving embedded frontend assets from the packaged EXE");
+    wait_for_server_ready(host, bound_port, Duration::from_secs(5))?;
     open_browser_for_server(host, bound_port);
 
     loop {
@@ -99,6 +108,31 @@ pub fn spawn_lan_server(host: &str, port: u16) -> anyhow::Result<u16> {
     });
 
     Ok(bound_port)
+}
+
+pub fn wait_for_server_ready(host: &str, port: u16, timeout: Duration) -> anyhow::Result<()> {
+    let address = format!("{host}:{port}");
+    let start = std::time::Instant::now();
+
+    loop {
+        if can_connect(&address) {
+            return Ok(());
+        }
+
+        if start.elapsed() >= timeout {
+            anyhow::bail!("Timed out waiting for local server at http://{address}");
+        }
+
+        thread::sleep(Duration::from_millis(100));
+    }
+}
+
+fn can_connect(address: &str) -> bool {
+    address
+        .to_socket_addrs()
+        .ok()
+        .and_then(|mut addrs| addrs.next())
+        .is_some_and(|addr| TcpStream::connect_timeout(&addr, Duration::from_millis(250)).is_ok())
 }
 
 pub fn browser_host_for_server(host: &str) -> &str {
@@ -282,13 +316,23 @@ where
 }
 
 fn serve_static(request: Request, url: &str) -> anyhow::Result<()> {
+    let Some(dist_dir) = DIST_DIR.as_ref() else {
+        respond_text(
+            request,
+            StatusCode(503),
+            "Frontend not built",
+            "text/plain; charset=utf-8",
+        )?;
+        return Ok(());
+    };
+
     let requested = if url == "/" {
         PathBuf::from("index.html")
     } else {
         sanitize_path(url)?
     };
 
-    if let Some(file) = DIST_DIR.get_file(&requested) {
+    if let Some(file) = dist_dir.get_file(&requested) {
         return serve_embedded_file(request, file);
     }
 
@@ -302,7 +346,7 @@ fn serve_static(request: Request, url: &str) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let index_file = DIST_DIR
+    let index_file = dist_dir
         .get_file("index.html")
         .ok_or_else(|| anyhow::anyhow!("Embedded frontend is missing index.html"))?;
     serve_embedded_file(request, index_file)

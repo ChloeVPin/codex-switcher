@@ -21,7 +21,7 @@ export async function invokeBackend<T>(
     return invoke<T>(command, args ?? {});
   }
 
-  const response = await fetch(`/api/invoke/${command}`, {
+  const response = await fetchWithRetry(`/api/invoke/${command}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(args ?? {}),
@@ -254,6 +254,25 @@ async function readJsonResponse(response: Response): Promise<any> {
   } catch {
     return { error: text };
   }
+}
+
+async function fetchWithRetry(input: RequestInfo | URL, init: RequestInit, attempts = 10): Promise<Response> {
+  let lastError: unknown;
+
+  for (let index = 0; index < attempts; index += 1) {
+    try {
+      const response = await fetch(input, init);
+      if (response.ok || response.status < 500) {
+        return response;
+      }
+      return response;
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => window.setTimeout(resolve, 150));
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("Failed to reach local backend");
 }
 
 export function isTauriRuntime(): boolean {

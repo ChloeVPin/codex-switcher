@@ -1,19 +1,25 @@
 import fs from "node:fs";
 import path from "node:path";
-import { execFileSync } from "node:child_process";
+import {
+  directoryExists,
+  fileExists,
+  findLatestChildDirectory,
+  joinPathList,
+  rootDir,
+  run,
+  runPnpm,
+  runQuiet,
+} from "./script-utils.mjs";
 
-const rootDir = process.cwd();
 const cargoManifestPath = path.join(rootDir, "src-tauri", "Cargo.toml");
 const artifactsDir = path.join(rootDir, "artifacts", "windows");
 const targetDir = path.join(rootDir, "src-tauri", "target");
 const portableBinaryName = "codex-web";
 const exeIconPath = path.join(rootDir, "src-tauri", "icons", "icon.ico");
-const windowsDelimiter = path.delimiter;
 const programFiles = process.env.ProgramFiles ?? "C:\\Program Files";
 const programFilesX86 =
   process.env["ProgramFiles(x86)"] ?? "C:\\Program Files (x86)";
 const windowsKitsRoot = path.join(programFilesX86, "Windows Kits", "10");
-const llvmBinDir = path.join(programFiles, "LLVM", "bin");
 
 const builds = [
   {
@@ -24,7 +30,7 @@ const builds = [
   },
   {
     target: "i686-pc-windows-msvc",
-    suffix: "x32",
+    suffix: "x86",
     arch: "x86",
     toolchain: "stable-i686-pc-windows-msvc",
   },
@@ -36,76 +42,15 @@ const builds = [
   },
 ];
 
-function run(command, args, extraEnv = {}) {
-  execFileSync(command, args, {
-    cwd: rootDir,
-    env: { ...process.env, ...extraEnv },
-    stdio: "inherit",
-  });
-}
-
-function runShell(commandLine) {
-  const shell = process.env.COMSPEC ?? "cmd.exe";
-  execFileSync(shell, ["/d", "/s", "/c", commandLine], {
-    cwd: rootDir,
-    env: process.env,
-    stdio: "inherit",
-  });
-}
-
 function ensureToolchainInstalled(toolchain) {
-  const installedToolchains = execFileSync("rustup", ["toolchain", "list"], {
-    cwd: rootDir,
-    env: process.env,
-    encoding: "utf8",
-  });
-
-  if (installedToolchains.includes(toolchain)) {
-    return;
+  const installedToolchains = runQuiet("rustup", ["toolchain", "list"]);
+  if (!installedToolchains.includes(toolchain)) {
+    run("rustup", ["toolchain", "install", toolchain, "--profile", "minimal"]);
   }
-
-  run("rustup", ["toolchain", "install", toolchain, "--profile", "minimal"]);
 }
 
-function directoryExists(dirPath) {
-  return Boolean(dirPath) && fs.existsSync(dirPath) && fs.statSync(dirPath).isDirectory();
-}
-
-function fileExists(filePath) {
-  return Boolean(filePath) && fs.existsSync(filePath) && fs.statSync(filePath).isFile();
-}
-
-function compareVersionStrings(left, right) {
-  const leftParts = left.split(/[.-]/).map((value) => Number.parseInt(value, 10));
-  const rightParts = right.split(/[.-]/).map((value) => Number.parseInt(value, 10));
-  const length = Math.max(leftParts.length, rightParts.length);
-
-  for (let index = 0; index < length; index += 1) {
-    const leftValue = Number.isFinite(leftParts[index]) ? leftParts[index] : 0;
-    const rightValue = Number.isFinite(rightParts[index]) ? rightParts[index] : 0;
-    if (leftValue !== rightValue) {
-      return rightValue - leftValue;
-    }
-  }
-
-  return right.localeCompare(left);
-}
-
-function findLatestChildDirectory(parentDir) {
-  if (!directoryExists(parentDir)) {
-    return undefined;
-  }
-
-  const entries = fs
-    .readdirSync(parentDir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name);
-
-  if (entries.length === 0) {
-    return undefined;
-  }
-
-  return entries.sort(compareVersionStrings)[0];
+function ensureRustTargetInstalled(target, toolchain) {
+  run("rustup", ["target", "add", target, "--toolchain", toolchain]);
 }
 
 function findVisualStudioRoot() {
@@ -126,14 +71,14 @@ function findVisualStudioRoot() {
     }
   }
 
-  throw new Error("Could not locate Visual Studio. Install the C++ toolchain.");
+  throw new Error("Could not locate Visual Studio. Install Visual Studio Build Tools with C++.");
 }
 
 function findWindowsSdkVersion() {
   const libRoot = path.join(windowsKitsRoot, "Lib");
   const latest = findLatestChildDirectory(libRoot);
   if (!latest) {
-    throw new Error(`Could not locate the Windows SDK libraries under ${libRoot}.`);
+    throw new Error(`Could not locate Windows SDK libraries under ${libRoot}.`);
   }
 
   return latest;
@@ -177,12 +122,12 @@ function findMsvcEnv(arch) {
   ].filter(directoryExists);
 
   return {
-    PATH: [hostBinDir, sdkBinDir, process.env.PATH].filter(Boolean).join(windowsDelimiter),
+    PATH: joinPathList([hostBinDir, sdkBinDir, process.env.PATH]),
     CC: "cl.exe",
     CXX: "cl.exe",
     AR: "lib.exe",
-    INCLUDE: includePaths.join(windowsDelimiter),
-    LIB: libPaths.join(windowsDelimiter),
+    INCLUDE: joinPathList(includePaths),
+    LIB: joinPathList(libPaths),
     VCToolsInstallDir: `${msvcRoot}\\`,
     WindowsSdkDir: `${windowsKitsRoot}\\`,
     WindowsSDKVersion: `${sdkVersion}\\`,
@@ -192,13 +137,18 @@ function findMsvcEnv(arch) {
 
 function findArm64Env() {
   const baseEnv = findMsvcEnv("arm64");
-  if (!directoryExists(llvmBinDir)) {
-    throw new Error(`Could not locate LLVM at ${llvmBinDir}.`);
+  const llvmBinDir = [
+    path.join(programFiles, "LLVM", "bin"),
+    path.join(programFilesX86, "LLVM", "bin"),
+  ].find(directoryExists);
+
+  if (!llvmBinDir) {
+    throw new Error("Could not locate LLVM. Install LLVM for Windows ARM64 linking.");
   }
 
   return {
     ...baseEnv,
-    PATH: [llvmBinDir, baseEnv.PATH].filter(Boolean).join(windowsDelimiter),
+    PATH: joinPathList([llvmBinDir, baseEnv.PATH]),
     CC: "clang-cl",
     CXX: "clang-cl",
     AR: "llvm-lib",
@@ -239,11 +189,7 @@ async function stampExeIcon(exePath) {
     const finish = (error) => {
       if (settled) return;
       settled = true;
-      if (error) {
-        reject(error);
-      } else {
-        resolve();
-      }
+      error ? reject(error) : resolve();
     };
 
     try {
@@ -260,11 +206,16 @@ async function stampExeIcon(exePath) {
 }
 
 async function main() {
+  if (process.platform !== "win32") {
+    throw new Error("Portable Windows builds must be produced on Windows with MSVC installed.");
+  }
+
   cleanArtifactsDir();
-  runShell("corepack pnpm build");
+  runPnpm(["build"]);
 
   for (const build of builds) {
     ensureToolchainInstalled(build.toolchain);
+    ensureRustTargetInstalled(build.target, build.toolchain);
 
     const env = {
       RUSTUP_TOOLCHAIN: build.toolchain,
@@ -281,6 +232,8 @@ async function main() {
         "--release",
         "--bin",
         portableBinaryName,
+        "--features",
+        "bundle-frontend",
         "--target",
         build.target,
         "--manifest-path",

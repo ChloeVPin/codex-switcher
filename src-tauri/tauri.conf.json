@@ -4,9 +4,9 @@
   "version": "1.1.0",
   "identifier": "com.lampese.codex-switcher",
   "build": {
-    "beforeDevCommand": "corepack pnpm dev:ui",
+    "beforeDevCommand": "node scripts/pnpm-run.mjs dev:ui",
     "devUrl": "http://127.0.0.1:1420",
-    "beforeBuildCommand": "corepack pnpm build",
+    "beforeBuildCommand": "node scripts/pnpm-run.mjs build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -26,6 +26,9 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "category": "DeveloperTool",
+    "shortDescription": "Manage Codex CLI accounts",
+    "longDescription": "Codex Switcher manages local Codex CLI account credentials, account switching, usage checks, and account import/export from a native desktop app.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -33,6 +36,14 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "linux": {
+      "deb": {
+        "desktopTemplate": "linux/codex-switcher.desktop.hbs"
+      },
+      "rpm": {
+        "desktopTemplate": "linux/codex-switcher.desktop.hbs"
+      }
+    },
     "createUpdaterArtifacts": true
   },
   "plugins": {

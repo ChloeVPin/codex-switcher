@@ -5,15 +5,11 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use chrono::Utc;
 
+use crate::platform::codex_home_dir;
 use crate::types::{AuthData, AuthDotJson, StoredAccount, TokenData};
 
 pub fn get_codex_home() -> Result<PathBuf> {
-    if let Ok(codex_home) = std::env::var("CODEX_HOME") {
-        return Ok(PathBuf::from(codex_home));
-    }
-
-    let home = dirs::home_dir().context("Could not find home directory")?;
-    Ok(home.join(".codex"))
+    codex_home_dir()
 }
 
 pub fn get_codex_auth_file() -> Result<PathBuf> {
