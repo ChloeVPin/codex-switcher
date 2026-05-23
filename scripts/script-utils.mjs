@@ -10,6 +10,7 @@ export function run(command, args, extraEnv = {}) {
     cwd: rootDir,
     env: { ...process.env, ...extraEnv },
     stdio: "inherit",
+    shell: process.platform === "win32",
   });
 }
 
@@ -19,6 +20,7 @@ export function runQuiet(command, args, extraEnv = {}) {
     env: { ...process.env, ...extraEnv },
     stdio: ["ignore", "pipe", "pipe"],
     encoding: "utf8",
+    shell: process.platform === "win32",
   }).trim();
 }
 
