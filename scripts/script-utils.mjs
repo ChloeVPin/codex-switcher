@@ -23,8 +23,8 @@ export function runQuiet(command, args, extraEnv = {}) {
 }
 
 export function commandExists(command) {
-  const probe = process.platform === "win32" ? "where" : "command";
-  const args = process.platform === "win32" ? [command] : ["-v", command];
+  const probe = process.platform === "win32" ? "where" : "which";
+  const args = [command];
 
   try {
     execFileSync(probe, args, { stdio: "ignore" });
