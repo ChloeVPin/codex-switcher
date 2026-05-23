@@ -96,9 +96,9 @@ jobs:
           releaseBody: ''
           releaseDraft: false
           prerelease: false
-          includeUpdaterJson: true
+          includeUpdaterJson: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
           updaterJsonKeepUniversal: true
-          args: --target ${{ matrix.target }} --features bundle-frontend
+          args: --target ${{ matrix.target }} --features bundle-frontend ${{ secrets.TAURI_SIGNING_PRIVATE_KEY == '' && '--no-sign' || '' }}
 
   windows-portable:
     needs: publish
