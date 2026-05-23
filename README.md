@@ -2,11 +2,15 @@
   <img src="public/app-logo.png" alt="Codex Switcher logo" width="72">
 </p>
 
-# Codex Switcher
+<h1 align="center">Codex Switcher</h1>
 
-Codex Switcher is a native desktop app for managing Codex/OpenAI accounts locally.
+<p align="center">
+  Codex Switcher is a native desktop app for managing Codex/OpenAI accounts locally.
+</p>
 
-It keeps account switching, usage checks, and import/export in one place — on Windows, macOS, and Linux.
+<p align="center">
+  It keeps account switching, usage checks, and import/export in one place — on Windows, macOS, and Linux.
+</p>
 
 ## What It Does
 
