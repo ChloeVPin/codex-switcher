@@ -1,4 +1,6 @@
-![Codex Switcher logo](public/app-logo.png)
+<p align="center">
+  <img src="public/app-logo.png" alt="Codex Switcher logo" width="72">
+</p>
 
 # Codex Switcher
 
